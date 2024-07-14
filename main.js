@@ -5,38 +5,39 @@ const app = express();
 app.use(express.json());
 
 // Array to store items
-let items = [{Topic: 'Basics', Duration: '02 Hours 43 Minutes', Link: 'https://google.com', id: '1', Status: 'show'}];
+let items = [{ Topic: 'Basics', Duration: '02 Hours 43 Minutes', Link: 'https://google.com', id: '1', Status: 'show' }];
 
 
+// A utility function which validates the incoming data in the POST Request.
 const validateItem = (item) => {
-    if (typeof item !== 'object' || item === null) {
-      return { valid: false, message: 'Data should be an object' };
-    }
-  
-    const { Topic, Duration, Link, id, Status } = item;
-    if (
-      typeof Topic === 'string' &&
-      typeof Duration === 'string' &&
-      typeof Link === 'string' &&
-      typeof id === 'string' &&
-      typeof Status === 'string'
-    ) {
-      return { valid: true };
-    }
-  
-    return { valid: false, message: 'Invalid data format or missing fields' };
-  };
-  
+  if (typeof item !== 'object' || item === null) {
+    return { valid: false, message: 'Data should be an object' };
+  }
+
+  const { Topic, Duration, Link, id, Status } = item;
+  if (
+    typeof Topic === 'string' &&
+    typeof Duration === 'string' &&
+    typeof Link === 'string' &&
+    typeof id === 'string' &&
+    typeof Status === 'string'
+  ) {
+    return { valid: true };
+  }
+
+  return { valid: false, message: 'Invalid data format or missing fields' };
+};
+
 
 // GET all items
-app.get('/items', (req, res) => {
+app.get('/items', (req, res, next) => {
   res.json(items);
 });
 
 
 
 // GET item by ID
-app.get('/items/:id', (req, res) => {
+app.get('/items/:id', (req, res, next) => {
   const { id } = req.params;
   const item = items.find(item => item.id === id);
   if (item) {
@@ -46,55 +47,65 @@ app.get('/items/:id', (req, res) => {
   }
 });
 
+// GET items by Status
+app.get('/items/:status', (req, res, next) => {
+  const { status } = req.params;
+  if (status !== 'show' && status !== 'hide') { // In case anything other than show or hide is sent in the request.
+    return res.status(400).send('Invalid status. Only "show" or "hide" are allowed.');
+  }
+  const filteredItems = items.filter(item => item.Status === status);
+  res.json(filteredItems);
+});
+
 
 
 // POST a new item
-app.post('/items', (req, res) => {
-    const validation = validateItem(req.body); // Using Validate Function to check whether the incoming data is correct or not.
-  
+app.post('/items', (req, res, next) => {
+  const validation = validateItem(req.body); // Using Validate Function to check whether the incoming data is correct or not.
+
+  if (validation.valid) {
+    const newItem = {
+      Topic: req.body.Topic,
+      Duration: req.body.Duration,
+      Link: req.body.Link,
+      id: req.body.id,
+      Status: req.body.Status,
+    };
+    items.push(newItem);
+    res.status(201).json(newItem);
+  } else {
+    res.status(400).send(validation.message);
+  }
+});
+
+// PUT (update) an item by ID
+app.put('/items/:id', (req, res, next) => {
+  const { id } = req.params;
+  const itemIndex = items.findIndex(item => item.id === id);
+  const validation = validateItem(req.body); // Using the validation function to check if the data is in correct format
+
+  if (itemIndex !== -1) {
     if (validation.valid) {
-      const newItem = {
+      items[itemIndex] = {
         Topic: req.body.Topic,
         Duration: req.body.Duration,
         Link: req.body.Link,
         id: req.body.id,
         Status: req.body.Status,
       };
-      items.push(newItem);
-      res.status(201).json(newItem);
+      res.json(items[itemIndex]);
     } else {
       res.status(400).send(validation.message);
     }
-  });
-  
-  // PUT (update) an item by ID
-  app.put('/items/:id', (req, res) => {
-    const { id } = req.params;
-    const itemIndex = items.findIndex(item => item.id === id);
-    const validation = validateItem(req.body); // Using the validation function to check if the data is in correct format
-  
-    if (itemIndex !== -1) {
-      if (validation.valid) {
-        items[itemIndex] = {
-          Topic: req.body.Topic,
-          Duration: req.body.Duration,
-          Link: req.body.Link,
-          id: req.body.id,
-          Status: req.body.Status,
-        };
-        res.json(items[itemIndex]);
-      } else {
-        res.status(400).send(validation.message);
-      }
-    } else {
-      res.status(404).send('Item not found');
-    }
-  });
+  } else {
+    res.status(404).send('Item not found');
+  }
+});
 
 
 
 // DELETE an item by ID specified in path
-app.delete('/items/:id', (req, res) => {
+app.delete('/items/:id', (req, res, next) => {
   const { id } = req.params;
   const itemIndex = items.findIndex(item => item.id === id);
   if (itemIndex !== -1) {
