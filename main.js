@@ -7,7 +7,7 @@ app.use(express.json());
 // Array to store items
 let items = [{ Topic: 'Basics', Duration: '02 Hours 43 Minutes', Link: 'https://google.com', id: '1', Status: 'show' }];
 
-
+console.log("Hi Ahmed")
 // A utility function which validates the incoming data in the POST Request.
 const validateItem = (item) => {
   if (typeof item !== 'object' || item === null) {
