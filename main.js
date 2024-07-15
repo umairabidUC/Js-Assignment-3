@@ -9,7 +9,6 @@ app.use(express.json());
 
 
 // Setting up the PostgreSQL Client:
-
 const pool = new Pool({
   user: 'Umair', 
   host: 'localhost',
@@ -41,6 +40,7 @@ const validateItem = (item) => {
 
 
 // GET all items
+// Using async awaits promises for db connections.
 app.get('/items', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM items');
@@ -66,14 +66,21 @@ app.get('/items/:id', async (req, res) => {
   }
 });
 
-// GET items by Status
-app.get('/items/:status', (req, res, next) => {
+
+
+
+// GET items by Status *Here using a /status/ path to so that /items/:id does not conflict with this search.
+app.get('/items/status/:status', async (req, res) => {
   const { status } = req.params;
-  if (status !== 'show' && status !== 'hide') { // In case anything other than show or hide is sent in the request.
+  if (status !== 'show' && status !== 'hide') {
     return res.status(400).send('Invalid status. Only "show" or "hide" are allowed.');
   }
-  const filteredItems = items.filter(item => item.Status === status);
-  res.json(filteredItems);
+  try {
+    const result = await pool.query('SELECT * FROM items WHERE status = $1', [status]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
 });
 
 
@@ -97,46 +104,52 @@ app.post('/items', async (req, res) => {
   }
 });
 
-// PUT (update) an item by ID
-app.put('/items/:id', (req, res, next) => {
-  const { id } = req.params;
-  const itemIndex = items.findIndex(item => item.id === id);
-  const validation = validateItem(req.body); // Using the validation function to check if the data is in correct format
 
-  if (itemIndex !== -1) {
-    if (validation.valid) {
-      items[itemIndex] = {
-        Topic: req.body.Topic,
-        Duration: req.body.Duration,
-        Link: req.body.Link,
-        id: req.body.id,
-        Status: req.body.Status,
-      };
-      res.json(items[itemIndex]);
-    } else {
-      res.status(400).send(validation.message);
+
+
+// PUT (update) an item by ID
+app.put('/items/:id', async (req, res) => {
+  const { id } = req.params;
+  const validation = validateItem(req.body);
+  if (validation.valid) {
+    const { Topic, Duration, Link, Status } = req.body;
+    try {
+      const result = await pool.query(
+        'UPDATE items SET topic = $1, duration = $2, link = $3, status = $4 WHERE id = $5 RETURNING *',
+        [Topic, Duration, Link, Status, id]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).send('Item not found');
+      } else {
+        res.json(result.rows[0]);
+      }
+    } catch (err) {
+      res.status(500).send('Server error');
     }
   } else {
-    res.status(404).send('Item not found');
+    res.status(400).send(validation.message);
   }
 });
 
 
 
 // DELETE an item by ID specified in path
-app.delete('/items/:id', (req, res, next) => {
+app.delete('/items/:id', async (req, res) => {
   const { id } = req.params;
-  const itemIndex = items.findIndex(item => item.id === id);
-  if (itemIndex !== -1) {
-    const deletedItem = items.splice(itemIndex, 1);
-    res.json(deletedItem);
-  } else {
-    res.status(404).send('Item not found');
+  try {
+    const result = await pool.query('DELETE FROM items WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      res.status(404).send('Item not found');
+    } else {
+      res.json(result.rows[0]);
+    }
+  } catch (err) {
+    res.status(500).send('Server error');
   }
 });
 
 // Starting the LocalHost Server Here:
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log('Server is running on port ${PORT}');
+  console.log(`Server is running on port ${PORT}`);
 });
