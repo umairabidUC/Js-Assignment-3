@@ -1,13 +1,24 @@
 const express = require('express');
 const app = express();
 
+const {Pool} =  require('pg')
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Array to store items
-let items = [{ Topic: 'Basics', Duration: '02 Hours 43 Minutes', Link: 'https://google.com', id: '1', Status: 'show' }];
 
-console.log("Hi Ahmed")
+
+// Setting up the PostgreSQL Client:
+
+const pool = new Pool({
+  user: 'Umair', 
+  host: 'localhost',
+  database: 'itemsdb',
+  password: 'umair', 
+  port: 5432,
+});
+
+
 // A utility function which validates the incoming data in the POST Request.
 const validateItem = (item) => {
   if (typeof item !== 'object' || item === null) {
