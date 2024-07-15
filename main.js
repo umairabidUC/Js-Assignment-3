@@ -41,20 +41,28 @@ const validateItem = (item) => {
 
 
 // GET all items
-app.get('/items', (req, res, next) => {
-  res.json(items);
+app.get('/items', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM items');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).send('Server error');
+  }
 });
 
 
-
 // GET item by ID
-app.get('/items/:id', (req, res, next) => {
+app.get('/items/:id', async (req, res) => {
   const { id } = req.params;
-  const item = items.find(item => item.id === id);
-  if (item) {
-    res.json(item);
-  } else {
-    res.status(404).send('Item not found');
+  try {
+    const result = await pool.query('SELECT * FROM items WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      res.status(404).send('Item not found');
+    } else {
+      res.json(result.rows[0]);
+    }
+  } catch (err) {
+    res.status(500).send('Server error');
   }
 });
 
@@ -71,19 +79,19 @@ app.get('/items/:status', (req, res, next) => {
 
 
 // POST a new item
-app.post('/items', (req, res, next) => {
-  const validation = validateItem(req.body); // Using Validate Function to check whether the incoming data is correct or not.
-
+app.post('/items', async (req, res) => {
+  const validation = validateItem(req.body);
   if (validation.valid) {
-    const newItem = {
-      Topic: req.body.Topic,
-      Duration: req.body.Duration,
-      Link: req.body.Link,
-      id: req.body.id,
-      Status: req.body.Status,
-    };
-    items.push(newItem);
-    res.status(201).json(newItem);
+    const { Topic, Duration, Link, Status } = req.body;
+    try {
+      const result = await pool.query(
+        'INSERT INTO items (topic, duration, link, status) VALUES ($1, $2, $3, $4) RETURNING *',
+        [Topic, Duration, Link, Status]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      res.status(500).send('Server error');
+    }
   } else {
     res.status(400).send(validation.message);
   }
