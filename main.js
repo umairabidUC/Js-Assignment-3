@@ -5,41 +5,38 @@ const app = express();
 app.use(express.json());
 
 // Array to store items
-let items = [{ Topic: 'Basics', Duration: '02 Hours 43 Minutes', Link: 'https://google.com', id: '1', Status: 'show' }];
+let items = [];
 
-console.log("Hi Ahmed")
-// A utility function which validates the incoming data in the POST Request.
-const validateItem = (item) => {
-  if (typeof item !== 'object' || item === null) {
-    return { valid: false, message: 'Data should be an object' };
-  }
-
-  const { Topic, Duration, Link, id, Status } = item;
+// Middleware for validation
+const validateItem = (req, res, next) => {
+  const { topic, duration, link } = req.body;
   if (
-    typeof Topic === 'string' &&
-    typeof Duration === 'string' &&
-    typeof Link === 'string' &&
-    typeof id === 'string' &&
-    typeof Status === 'string'
+    typeof topic === 'string' &&
+    typeof duration === 'number' &&
+    typeof link === 'string'
   ) {
-    return { valid: true };
+    next();
+  } else {
+    res.status(400).send('Invalid data format or missing fields');
   }
-
-  return { valid: false, message: 'Invalid data format or missing fields' };
 };
 
-
-// GET all items
-app.get('/items', (req, res, next) => {
-  res.json(items);
+// GET all items with optional status filter
+app.get('/items', (req, res) => {
+  const { status } = req.query;
+  if (status !== undefined) {
+    const statusBoolean = status.toLowerCase() === 'true';
+    const filteredItems = items.filter(item => item.status === statusBoolean);
+    res.json(filteredItems);
+  } else {
+    res.json(items);
+  }
 });
 
-
-
 // GET item by ID
-app.get('/items/:id', (req, res, next) => {
+app.get('/items/:id', (req, res) => {
   const { id } = req.params;
-  const item = items.find(item => item.id === id);
+  const item = items.find(item => item.id === parseInt(id));
   if (item) {
     res.json(item);
   } else {
@@ -47,77 +44,68 @@ app.get('/items/:id', (req, res, next) => {
   }
 });
 
-// GET items by Status
-app.get('/items/:status', (req, res, next) => {
-  const { status } = req.params;
-  if (status !== 'show' && status !== 'hide') { // In case anything other than show or hide is sent in the request.
-    return res.status(400).send('Invalid status. Only "show" or "hide" are allowed.');
-  }
-  const filteredItems = items.filter(item => item.Status === status);
-  res.json(filteredItems);
-});
-
-
-
 // POST a new item
-app.post('/items', (req, res, next) => {
-  const validation = validateItem(req.body); // Using Validate Function to check whether the incoming data is correct or not.
-
-  if (validation.valid) {
-    const newItem = {
-      Topic: req.body.Topic,
-      Duration: req.body.Duration,
-      Link: req.body.Link,
-      id: req.body.id,
-      Status: req.body.Status,
-    };
-    items.push(newItem);
-    res.status(201).json(newItem);
-  } else {
-    res.status(400).send(validation.message);
-  }
+app.post('/items', validateItem, (req, res) => {
+  const { topic, duration, link } = req.body;
+  const newItem = {
+    id: items.length ? items[items.length - 1].id + 1 : 1, // Incremental ID
+    topic,
+    duration,
+    link,
+    status: false, // Default status
+  };
+  items.push(newItem);
+  res.status(201).json(newItem);
 });
 
 // PUT (update) an item by ID
-app.put('/items/:id', (req, res, next) => {
+app.put('/items/:id', (req, res) => {
   const { id } = req.params;
-  const itemIndex = items.findIndex(item => item.id === id);
-  const validation = validateItem(req.body); // Using the validation function to check if the data is in correct format
-
-  if (itemIndex !== -1) {
-    if (validation.valid) {
-      items[itemIndex] = {
-        Topic: req.body.Topic,
-        Duration: req.body.Duration,
-        Link: req.body.Link,
-        id: req.body.id,
-        Status: req.body.Status,
-      };
-      res.json(items[itemIndex]);
-    } else {
-      res.status(400).send(validation.message);
-    }
-  } else {
-    res.status(404).send('Item not found');
+  const itemIndex = items.findIndex(item => item.id === parseInt(id));
+  if (itemIndex === -1) {
+    return res.status(404).send('Item not found');
   }
+  
+  const { topic, duration, link, status } = req.body;
+  if (topic !== undefined) items[itemIndex].topic = topic;
+  if (duration !== undefined) items[itemIndex].duration = duration;
+  if (link !== undefined) items[itemIndex].link = link;
+  if (status !== undefined) items[itemIndex].status = status;
+
+  res.json(items[itemIndex]);
 });
 
-
-
-// DELETE an item by ID specified in path
-app.delete('/items/:id', (req, res, next) => {
+// PATCH (update status) an item by ID
+app.patch('/items/:id/status', (req, res) => {
   const { id } = req.params;
-  const itemIndex = items.findIndex(item => item.id === id);
+  const itemIndex = items.findIndex(item => item.id === parseInt(id));
+  if (itemIndex === -1) {
+    return res.status(404).send('Item not found');
+  }
+
+  const { status } = req.body;
+  if (typeof status !== 'boolean') {
+    return res.status(400).send('Invalid status format');
+  }
+
+  items[itemIndex].status = status;
+  res.json(items[itemIndex]);
+});
+
+// DELETE an item by ID
+app.delete('/items/:id', (req, res) => {
+  const { id } = req.params;
+  const itemIndex = items.findIndex(item => item.id === parseInt(id));
   if (itemIndex !== -1) {
-    const deletedItem = items.splice(itemIndex, 1);
+    const [deletedItem] = items.splice(itemIndex, 1);
     res.json(deletedItem);
   } else {
     res.status(404).send('Item not found');
   }
 });
 
-// Starting the LocalHost Server Here:
+// Start the server
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log('Server is running on port ${PORT}');
+  console.log(`Server is running on port ${PORT}`);
 });
